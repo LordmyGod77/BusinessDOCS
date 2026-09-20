@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Schedule an Apartment Tour</title><style>
+body{font:16px system-ui,sans-serif;background:#f3f6fa;color:#152235;margin:0;padding:24px}main{max-width:620px;margin:36px auto;background:white;padding:32px;border-radius:16px;box-shadow:0 8px 28px #14203418}h1{margin-top:0}label{display:block;margin:14px 0 6px;font-weight:600}input,select,textarea{box-sizing:border-box;width:100%;padding:11px;border:1px solid #9da9ba;border-radius:8px;font:inherit}button{margin-top:20px;padding:12px 18px;border:0;border-radius:8px;background:#1456c0;color:#fff;font:inherit;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}.hint{font-size:14px;color:#465469}#status{margin-top:16px;white-space:pre-wrap}#next{display:none}</style></head>
+<body><main><h1>Schedule an apartment tour</h1><p>Tell us how to reach you and your preferred tour time. We’ll check the property’s available tour options before confirming an appointment.</p>
+<form id="tourForm"><input type="hidden" id="floorplanId" name="floorplanId">
+<label for="firstName">First name</label><input id="firstName" name="firstName" autocomplete="given-name" maxlength="100" required>
+<label for="lastName">Last name</label><input id="lastName" name="lastName" autocomplete="family-name" maxlength="100" required>
+<label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" maxlength="200" required>
+<label for="phone">Phone</label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="30" required>
+<label for="moveDate">Preferred move-in date</label><input id="moveDate" name="moveDate" type="date">
+<label for="tourDate">Preferred tour date</label><input id="tourDate" name="tourDate" type="date" required>
+<label for="tourWindow">Preferred time</label><select id="tourWindow" name="tourWindow" required><option value="">Choose a time window</option><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select>
+<label for="message">Additional details (optional)</label><textarea id="message" name="message" maxlength="1000" rows="3"></textarea>
+<p class="hint">Submitting requests a tour; it does not confirm a booking or authorize marketing messages. You will see the property's actual scheduling choices after your request is processed. Any property-specific consent is presented separately.</p>
+<button id="submit" type="submit">Request tour options</button></form><p id="status" role="status"></p><div id="next"></div></main>
+<script>
+// Set this to your actual hosted lead/tour API endpoint after the server-side integration exists.
+const TOUR_API_ENDPOINT = '';
+const params = new URLSearchParams(location.search);
+const id = params.get('floorplan-id') || '';
+const valid = /^FP-[a-zA-Z0-9-]{8,100}$/.test(id);
+const form = document.getElementById('tourForm');
+document.getElementById('floorplanId').value = valid ? id : '';
+if (!valid) {
+  form.hidden = true;
+  document.getElementById('status').textContent = 'This tour link is missing a valid floorplan identifier. Open the original listing and use its Schedule Tour link.';
+}
+document.getElementById('tourDate').min = new Date().toLocaleDateString('en-CA');
+form.addEventListener('submit', async event => {
+  event.preventDefault();
+  const status = document.getElementById('status');
+  if (!TOUR_API_ENDPOINT) {
+    status.textContent = 'Tour request service is not connected yet. Please use the contact information on the listing to request a tour.';
+    return;
+  }
+  const button = document.getElementById('submit'); button.disabled = true;
+  status.textContent = 'Submitting tour request…';
+  const payload = Object.fromEntries(new FormData(form));
+  try {
+    const response = await fetch(TOUR_API_ENDPOINT, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || 'Unable to submit tour request.');
+    status.textContent = 'Request received. A tour is not confirmed until the property confirms it.';
+    // Public property details and any scheduling link must come from validated server response AFTER lead creation.
+    const next = document.getElementById('next');
+    if (result.tourPageUrl && /^https:\/\//.test(result.tourPageUrl)) {
+      const a = document.createElement('a'); a.href = result.tourPageUrl; a.target='_blank'; a.rel='noopener noreferrer'; a.textContent='View property tour scheduling'; next.replaceChildren(a); next.style.display='block';
+    }
+  } catch(error) { status.textContent = error.message; } finally { button.disabled = false; }
+});
+</script></body></html>
